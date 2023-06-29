@@ -10,6 +10,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import jakarta.persistence.EntityNotFoundException;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/users")
@@ -41,9 +45,11 @@ public class UserController {
                     content = {@Content(examples = {@ExampleObject(value = "")})})
 
     })
-    @GetMapping("")
-    public List<User> getAllUsers() {
-        return userService.getAllUsers();
+
+    @GetMapping
+    public ResponseEntity<List<User>> getAllUsers() {
+        List<User> users = userService.getAllUsers();
+        return ResponseEntity.ok().body(users);
     }
 
     @Operation(summary = "Get users by ID", description = "Get user by ID")
@@ -55,30 +61,31 @@ public class UserController {
                     content = {@Content(examples = {@ExampleObject(value = "")})})
 
     })
+
     @GetMapping("/{id}")
-    public User getUserById(@PathVariable Long id) {
-        return userService.getUserById(id);
+    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+        Optional<User> user = Optional.ofNullable(userService.getUserById(id));
+        if (user.isEmpty()){
+            throw new EntityNotFoundException("id-" + id);
+        }
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(user.get());
     }
 
     @Operation(summary = "Create user", description = "Create new user")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "${api.response-codes.ok.desc}"),
+            @ApiResponse(responseCode = "201", description = "${api.response-codes.created.desc}"),
             @ApiResponse(responseCode = "400", description = "${api.response-codes.badRequest.desc}",
                     content = {@Content(examples = {@ExampleObject(value = "")})}),
             @ApiResponse(responseCode = "400", description = "${api.response-codes.notFound.desc}",
                     content = {@Content(examples = {@ExampleObject(value = "")})})
 
     })
-    @PostMapping("")
-    public User createUser(@RequestBody User user) {
-        User user1 = userService.createUser(user);
-        if (user1 != null) {
-            return user1;
-        } else {
-            return null;
-        }
+
+    @PostMapping
+    public ResponseEntity<User> createUser(@RequestBody User user) {
+        User createdUser = userService.createUser(user);
+        return ResponseEntity.status(201).body(createdUser);
     }
-//    return userService.createUser(user)
 
     @Operation(summary = "Update user", description = "Update user by ID")
     @ApiResponses(value = {
@@ -89,9 +96,18 @@ public class UserController {
                     content = {@Content(examples = {@ExampleObject(value = "")})})
 
     })
+
     @PutMapping("/{id}")
-    public User updateUser(@PathVariable Long id, @RequestBody User user) {
-        return userService.updateUser(id, user);
+    public ResponseEntity<User> updateUser(@PathVariable Long id,@RequestBody User user) {
+        Optional<User> updatedUser = Optional.ofNullable(userService.getUserById(id));
+        if (updatedUser.isEmpty()) {
+            throw new EntityNotFoundException("id-" + id);
+        }
+        User oldUser = updatedUser.get();
+        oldUser.setName(user.getName());
+        oldUser.setEmail(user.getEmail());
+        oldUser.setTaskaList(user.getTaskaList());
+        return ResponseEntity.ok().body(userService.updateUser(id, oldUser));
     }
 
     @Operation(summary = "Delete user", description = "Delete user by ID")
@@ -104,7 +120,13 @@ public class UserController {
 
     })
     @DeleteMapping("/{id}")
-    public void deleteUser(@PathVariable Long id) {
+    public ResponseEntity<User> deleteUser(@PathVariable Long id) {
+        Optional<User> user = Optional.ofNullable(userService.getUserById(id));
+        if (user.isEmpty()) {
+            throw new EntityNotFoundException("id-" + id);
+        }
         userService.deleteUser(id);
+        return ResponseEntity.ok().body(user.get());
     }
+
 }
